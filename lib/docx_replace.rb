@@ -44,12 +44,6 @@ module DocxReplace
     end
 
     def write_back_to_file(new_path=nil)
-      temp_file = if @temp_dir.nil?
-                    Tempfile.new('docxedit-')
-                  else
-                    Tempfile.new('docxedit-', @temp_dir)
-                  end
-
       buffer = Zip::OutputStream.write_buffer do |out|
         @zip_file.entries.each do |e|
           unless e.name == DOCUMENT_FILE_PATH
@@ -58,11 +52,8 @@ module DocxReplace
           end
         end
         out.put_next_entry(DOCUMENT_FILE_PATH)
-        # out.write xml_doc.to_xml(:indent => 0).gsub("\n","")
         out.print @document_content
       end
-
-      File.open(new_path, 'wb') { |f| f.write(buffer.string) }
 
       if new_path.nil?
         path = @zip_file.name
@@ -70,8 +61,8 @@ module DocxReplace
       else
         path = new_path
       end
-      FileUtils.mv(temp_file.path, path)
-      @zip_file = Zip::File.new(path, true)
+
+      File.open(path, 'wb') { |f| f.write(buffer.string) }
     end
   end
 end
