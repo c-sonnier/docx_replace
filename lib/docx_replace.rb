@@ -1,6 +1,4 @@
-# encoding: UTF-8
-
-require "docx_replace/version"
+require 'docx_replace/version'
 require 'zip'
 require 'tempfile'
 
@@ -17,51 +15,54 @@ module DocxReplace
     def replace(pattern, replacement, multiple_occurrences=false)
       replace = replacement.to_s.encode(xml: :text)
       if multiple_occurrences
-        @document_content.force_encoding("UTF-8").gsub!(pattern, replace)
+        @document_content.force_encoding('UTF-8').gsub!(pattern, replace)
       else
-        @document_content.force_encoding("UTF-8").sub!(pattern, replace)
+        @document_content.force_encoding('UTF-8').sub!(pattern, replace)
       end
     end
 
     def matches(pattern)
-      @document_content.scan(pattern).map{|match| match.first}
+      @document_content.scan(pattern).map(&:first)
     end
 
     def unique_matches(pattern)
       matches(pattern)
     end
 
-    alias_method :uniq_matches, :unique_matches
-
+    alias uniq_matches unique_matches
 
     def commit(new_path=nil)
       write_back_to_file(new_path)
     end
 
     private
-    DOCUMENT_FILE_PATH = 'word/document.xml'
+
+    DOCUMENT_FILE_PATH = 'word/document.xml'.freeze
 
     def read_docx_file
       @document_content = @zip_file.read(DOCUMENT_FILE_PATH)
     end
 
     def write_back_to_file(new_path=nil)
-      if @temp_dir.nil?
-        temp_file = Tempfile.new('docxedit-')
-      else
-        temp_file = Tempfile.new('docxedit-', @temp_dir)
-      end
-      Zip::OutputStream.open(temp_file.path) do |zos|
+      temp_file = if @temp_dir.nil?
+                    Tempfile.new('docxedit-')
+                  else
+                    Tempfile.new('docxedit-', @temp_dir)
+                  end
+
+      buffer = Zip::OutputStream.write_buffer do |out|
         @zip_file.entries.each do |e|
           unless e.name == DOCUMENT_FILE_PATH
-            zos.put_next_entry(e.name)
-            zos.print e.get_input_stream.read
+            out.put_next_entry(e.name)
+            out.print e.get_input_stream.read
           end
         end
-
-        zos.put_next_entry(DOCUMENT_FILE_PATH)
-        zos.print @document_content
+        out.put_next_entry(DOCUMENT_FILE_PATH)
+        # out.write xml_doc.to_xml(:indent => 0).gsub("\n","")
+        out.print @document_content
       end
+
+      File.open(new_path, 'wb') { |f| f.write(buffer.string) }
 
       if new_path.nil?
         path = @zip_file.name
